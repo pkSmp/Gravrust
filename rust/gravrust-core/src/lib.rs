@@ -328,7 +328,6 @@ pub mod villager_layers;
 pub mod weather;
 pub mod dirty_sections;
 pub mod gui_player_equipment;
-pub mod shader_stages;
 pub mod slice;
 pub mod world_border;
 pub mod client_sound_triggers;

@@ -51,10 +51,10 @@ mod tests {
     #[test]
     fn test_sample_attenuation_with_distance() {
         // At distance 0, should be full volume
-        assert_eq!(sample_attenuation_with_distance(1.0, 0.0, &[]), 16);
+        assert_eq!(sample_attenuation_with_distance(1.0, 0.0, &[]), 16.0);
         
         // At distance 10, should be attenuated
         let attenuated = sample_attenuation_with_distance(1.0, 10.0, &[]);
-        assert!(attenuated < 16);
+        assert!(attenuated < 16.0);
     }
 }
