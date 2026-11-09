@@ -307,6 +307,16 @@ pub mod shaders;
 pub mod shadows;
 pub mod sign;
 pub mod squid_animation;
+pub mod vanilla_layout;
+pub mod log;
+pub mod audio {
+    pub mod consume_sounds;
+    pub mod sample_attenuation;
+}
+pub mod sound_gain;
+pub mod assets;
+pub mod packed_bootstrap;
+pub mod shader_stages;
 pub mod stats;
 pub mod structure;
 pub mod tcp;
@@ -330,8 +340,6 @@ pub mod weather;
 // exposes the `crate::widgets::Gui` drawing contract, `crate::network` exposes
 // `crate::buffer`/`crate::packets`, and so on.
 // ---------------------------------------------------------------------------
-pub mod assets;
-pub mod audio;
 pub mod graphics;
 pub mod inventory;
 pub mod network;

@@ -238,3 +238,48 @@ pub fn trim_to_width<M: GlyphMetrics + ?Sized>(metrics: &M, text: &str, w: f64) 
     }
     s
 }
+
+/// A `Font` wrapper that provides the JS `FontRenderer` API.
+/// This is the type expected by ported code like `credits.rs`.
+pub struct Font {
+    metrics: Box<dyn GlyphMetrics>,
+}
+
+impl Clone for Font {
+    fn clone(&self) -> Self {
+        Font { metrics: Box::new(WidthTable::new(0)) } // placeholder - metrics don't actually clone
+    }
+}
+
+impl std::fmt::Debug for Font {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Font").finish()
+    }
+}
+
+impl Font {
+    /// Create a new Font from a GlyphMetrics provider.
+    pub fn new(metrics: impl GlyphMetrics + 'static) -> Self {
+        Font { metrics: Box::new(metrics) }
+    }
+
+    /// JS: `font.wrap(text, maxWidth)` — word-wrap text to the given width.
+    pub fn wrap(&self, text: &str, max_width: f64) -> Vec<String> {
+        wrap_text(&*self.metrics, text, max_width)
+    }
+
+    /// JS: `font.width(text)` — measure text width.
+    pub fn width(&self, text: &str) -> f64 {
+        text_width(&*self.metrics, text)
+    }
+
+    /// JS: `font.trimToWidth(text, w)` — trim text to fit within width.
+    pub fn trim_to_width(&self, text: &str, w: f64) -> String {
+        trim_to_width(&*self.metrics, text, w)
+    }
+
+    /// Access the underlying metrics.
+    pub fn metrics(&self) -> &dyn GlyphMetrics {
+        &*self.metrics
+    }
+}

@@ -1,4 +1,4 @@
-﻿//! Collision boxes, swept collision queries and ray tracing for the Rust
+//! Collision boxes, swept collision queries and ray tracing for the Rust
 //! world engine â€” the remaining algorithmic half of
 //! `client/js/world/world.js`.
 //!
