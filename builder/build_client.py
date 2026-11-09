@@ -447,11 +447,26 @@ def build():
     asset_zip_bytes = asset_zip_buf.getvalue()
     asset_b64 = base64.b64encode(asset_zip_bytes).decode('ascii')
 
-    # B) Bundle all JS modules synchronously into CommonJS (no dynamic import, no blob:null)
+    # B) Bundle only the essential JS glue modules into CommonJS
+    # The worker (mesh-worker.js) no longer exists - all rendering is in Rust/WASM
     entry_file = os.path.join(client_dir, 'js', 'main.js')
-    worker_file = os.path.join(client_dir, 'js', 'render', 'mesh-worker.js')
-    worker_bundle = bundle_all_modules_cjs(worker_file, client_dir, all_files=False)
+    worker_bundle = ""  # No worker needed - rendering is in Rust/WASM
+    # Only bundle the essential JS glue modules (main.js, platform/*, crash.js, assets.js, etc.)
     bundle_js = bundle_all_modules_cjs(entry_file, client_dir, all_files=True)
+
+    # D) Read WASM module bytes for embedding
+    wasm_path = os.path.join(os.path.dirname(client_dir), '..', 'rust', 'target', 'wasm32-unknown-unknown', 'release', 'gravrust.wasm')
+    if not os.path.exists(wasm_path):
+        # Try alternative path
+        wasm_path = os.path.join(os.path.dirname(client_dir), 'rust', 'target', 'wasm32-unknown-unknown', 'release', 'gravrust.wasm')
+    wasm_b64 = ""
+    if os.path.exists(wasm_path):
+        with open(wasm_path, 'rb') as f:
+            wasm_bytes = f.read()
+            wasm_b64 = base64.b64encode(wasm_bytes).decode('ascii')
+        print(f"[*] Embedded WASM core ({len(wasm_bytes)} bytes)")
+    else:
+        print(f"[!] WASM file not found at {wasm_path}")
 
     # C) Inline CSS & favicons
     with open(os.path.join(client_dir, 'style.css'), 'r', encoding='utf-8') as f:
@@ -492,7 +507,6 @@ def build():
   </script>
 
   <script>
-    var __MESH_WORKER_SOURCE__ = {json.dumps(worker_bundle)};
 {bundle_js}
 
     // Synchronous execution: zero blob URLs, zero fetch, works directly from file:///
