@@ -16,6 +16,7 @@ import struct
 import shutil
 import zipfile
 import argparse
+import io
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Build Gravrust Client from Minecraft jar")
@@ -97,13 +98,34 @@ def transform_module_to_cjs(code, rel_path, root_dir):
         code
     )
 
+    # Now process exports and track class bodies
     lines = code.split('\n')
     out_lines = []
     i = 0
+    
+    # Track class exports that need to be emitted after class body
+    # Stack of (class_name, indent_level) for classes we're currently inside
+    class_stack = []
+    # Track brace depth for the current context
+    brace_depth = 0
+    
     while i < len(lines):
         line = lines[i]
         stripped = line.strip()
-
+        
+        # Count braces in this line to track depth
+        # We count before processing exports so we know the depth at the start of the line
+        open_braces = line.count('{')
+        close_braces = line.count('}')
+        
+        # Check if we're exiting any class bodies (brace_depth went back to or below class's starting depth)
+        while class_stack and brace_depth <= class_stack[-1][1]:
+            cl_name, _ = class_stack.pop()
+            out_lines.append(f"exports.{cl_name} = {cl_name};")
+        
+        stripped = line.strip()
+        brace_depth += open_braces - close_braces
+        
         # export default ...
         if stripped.startswith('export default '):
             expr = stripped[len('export default '):].rstrip(';')
@@ -140,7 +162,12 @@ def transform_module_to_cjs(code, rel_path, root_dir):
         if m_cl_exp:
             cl_name = m_cl_exp.group(1)
             clean_line = stripped[len('export '):]
-            out_lines.append(clean_line + f"\nexports.{cl_name} = {cl_name};")
+            # Output class declaration without export
+            out_lines.append(clean_line)
+            # Push to class stack: we'll emit export after the class body ends
+            # Capture depth BEFORE the opening brace (brace_depth already includes open_braces)
+            class_depth_before_open = brace_depth - open_braces
+            class_stack.append((cl_name, class_depth_before_open))
             i += 1
             continue
 
@@ -192,6 +219,11 @@ def transform_module_to_cjs(code, rel_path, root_dir):
         out_lines.append(line)
         i += 1
 
+    # Emit any remaining class exports at the end
+    while class_stack:
+        cl_name, _ = class_stack.pop()
+        out_lines.append(f"exports.{cl_name} = {cl_name};")
+
     return '\n'.join(out_lines)
 
 def bundle_all_modules_cjs(entry_file, client_dir, all_files=False):
@@ -201,11 +233,22 @@ def bundle_all_modules_cjs(entry_file, client_dir, all_files=False):
     def normalize(p):
         return os.path.normpath(p).replace('\\', '/')
 
+    def should_skip(rel_path):
+        """Check if this file should be skipped (not transformed/bundled)"""
+        norm = normalize(rel_path)
+        # Skip wasm binary files, but transform .js files in wasm/pkg/
+        if norm.startswith('wasm/pkg/') and not norm.endswith('.js'):
+            return True
+        return False
+
     def collect(rel_path):
         norm = normalize(rel_path)
         if norm in visited:
             return
         visited.add(norm)
+
+        if should_skip(norm):
+            return
 
         full_path = os.path.join(client_dir, norm)
         with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
@@ -430,7 +473,6 @@ def build():
     print(f"[*] Packaging single-file offline client {compact_out}...")
 
     # A) Build in-memory asset zip
-    import io
     asset_zip_buf = io.BytesIO()
     with zipfile.ZipFile(asset_zip_buf, 'w', zipfile.ZIP_DEFLATED) as az:
         for root, dirs, files in os.walk(assets_dir):
@@ -504,6 +546,10 @@ def build():
 
   <script id="minecraftjs-assets" type="application/octet-stream" data-encoding="base64" data-bytes="{len(asset_zip_bytes)}">
 {asset_b64}
+  </script>
+
+  <script id="minecraftjs-wasm" type="application/octet-stream" data-encoding="base64" data-bytes="{len(wasm_b64) * 3 // 4 if wasm_b64 else 0}">
+{wasm_b64}
   </script>
 
   <script>
